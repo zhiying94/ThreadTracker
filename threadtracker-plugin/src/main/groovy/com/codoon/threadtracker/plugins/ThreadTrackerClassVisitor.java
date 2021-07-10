@@ -23,7 +23,7 @@ class ThreadTrackerClassVisitor extends ClassVisitor implements Opcodes {
     private String jarName = null; // 不是jar包则为空
 
     public ThreadTrackerClassVisitor(ClassVisitor cv, String jarName) {
-        super(Opcodes.ASM5, cv);
+        super(Opcodes.ASM7, cv);
         this.jarName = jarName;
     }
 
@@ -59,22 +59,27 @@ class ThreadTrackerClassVisitor extends ClassVisitor implements Opcodes {
                 case S_Thread:
                     changingSuper = true;
                     super.visit(version, access, name, signature, S_TBaseThread, interfaces);
+                    System.out.println("S_Thread className=" + className);
                     return;
                 case S_ThreadPoolExecutor:
                     changingSuper = true;
                     super.visit(version, access, name, signature, S_TBaseThreadPoolExecutor, interfaces);
+                    System.out.println("S_ThreadPoolExecutor className=" + className);
                     return;
                 case S_ScheduledThreadPoolExecutor:
                     changingSuper = true;
                     super.visit(version, access, name, signature, S_TBaseScheduledThreadPoolExecutor, interfaces);
+                    System.out.println("S_ScheduledThreadPoolExecutor className=" + className);
                     return;
                 case S_Timer:
                     changingSuper = true;
                     super.visit(version, access, name, signature, S_TBaseTimer, interfaces);
+                    System.out.println("S_Timer className=" + className);
                     return;
                 case S_HandlerThread:
                     changingSuper = true;
                     super.visit(version, access, name, signature, S_TBaseHandlerThread, interfaces);
+                    System.out.println("S_HandlerThread className=" + className);
                     return;
             }
         }

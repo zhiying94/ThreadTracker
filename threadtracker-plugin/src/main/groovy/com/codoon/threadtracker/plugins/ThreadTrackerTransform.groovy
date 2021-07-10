@@ -18,10 +18,11 @@ import java.util.jar.JarFile
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 
+import static com.codoon.threadtracker.plugins.PluginUtils.log
 import static org.objectweb.asm.ClassReader.EXPAND_FRAMES
 
 class ThreadTrackerTransform extends Transform implements Plugin<Project> {
-    private final String VERSION = "1.1.0"
+//    private final String VERSION = "1.1.1"
 
     @Override
     void apply(Project project) {
@@ -43,16 +44,19 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
 
     @Override
     Set<QualifiedContent.ContentType> getInputTypes() {
+        // 输入类型，可以使class文件，也可以是源码文件 ，这是表示输入的class文件
         return TransformManager.CONTENT_CLASS
     }
 
     @Override
     Set<? super QualifiedContent.Scope> getScopes() {
+        // 作用范围
         return TransformManager.SCOPE_FULL_PROJECT
     }
 
     @Override
     boolean isIncremental() {
+        //是否支持增量编译
         return false
     }
 
@@ -79,29 +83,33 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
             input.directoryInputs.each { DirectoryInput directoryInput ->
                 handleDirectoryInput(directoryInput, outputProvider)
             }
-
             input.jarInputs.each { JarInput jarInput ->
                 // com.codoon.threadtracker:threadtracker:1.0.0
-                if (jarInput.file.getAbsolutePath().endsWith(".jar") && jarInput.name.startsWith("com.codoon.threadtracker:threadtracker")) {
-                    int colonIndex = jarInput.name.lastIndexOf(":")
-                    String version = jarInput.name.substring(colonIndex + 1)
-                    if (version != VERSION) {
-                        throw new RuntimeException("version mismatching: please use com.codoon.threadtracker:threadtracker:" + VERSION)
+                if (jarInput.file.getAbsolutePath().endsWith(".jar")) {
+                    JarFile jarFile = new JarFile(jarInput.file)
+                    if (jarFile.getEntry("com/codoon/threadthracker/BuildConfig.class") != null) {
+//                    String version = jarInput.name.substring(colonIndex + 1)
+
+//                    if (version != VERSION) {
+//                        throw new RuntimeException("version mismatching: please use com.codoon.threadtracker:threadtracker:" + VERSION)
+//                    }
+                        threadtrackerJarInput = jarInput
+                    } else {
+                        handleJarInputs(jarInput, jarFile, outputProvider)
                     }
-                    threadtrackerJarInput = jarInput
-                } else {
-                    handleJarInputs(jarInput, outputProvider)
                 }
             }
         }
 
+        println 'threadtrackerJarInput=' + threadtrackerJarInput
         // 最后处理threadtracker以便向UserPackage.java添加所有用户包名
         if (threadtrackerJarInput != null) {
             println 'build user package list...'
-            handleJarInputs(threadtrackerJarInput, outputProvider)
+            JarFile jarFile = new JarFile(threadtrackerJarInput.file)
+            handleJarInputs(threadtrackerJarInput, jarFile, outputProvider)
         } else {
             println 'error: threadtracker-transform failed'
-            throw new RuntimeException("can't find threadtracker.jar: please implementation 'com.codoon.threadtracker:threadtracker:" + VERSION + "' in your application gradle file")
+            throw new RuntimeException("can't find threadtracker.jar: please implementation 'com.codoon.threadtracker:threadtracker:" + "haha" + "' in your application gradle file")
         }
 
         def cost = (System.currentTimeMillis() - startTime) / 1000
@@ -115,7 +123,7 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
             directoryInput.file.eachFileRecurse { File file ->
                 def name = file.name
                 if (checkClassFile(name, false)) {
-                    // println '----------- class <' + name + '> -----------'
+//                     println '----------- class <' + name + '> -----------'
                     ClassReader classReader = new ClassReader(file.bytes)
                     ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS)
                     ClassVisitor cv = new ThreadTrackerClassVisitor(classWriter, null)
@@ -136,15 +144,14 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
         FileUtils.copyDirectory(directoryInput.file, dest)
     }
 
-    static void handleJarInputs(JarInput jarInput, TransformOutputProvider outputProvider) {
+    static void handleJarInputs(JarInput jarInput, JarFile jarFile, TransformOutputProvider outputProvider) {
         if (jarInput.file.getAbsolutePath().endsWith(".jar")) {
             def jarName = jarInput.name
-            // println '----------- jarName <' + jarName + '> -----------'
+//             println '----------- jarName <' + jarName + '> -----------'
             def md5Name = DigestUtils.md5Hex(jarInput.file.getAbsolutePath())
             if (jarName.endsWith(".jar")) {
                 jarName = jarName.substring(0, jarName.length() - 4)
             }
-            JarFile jarFile = new JarFile(jarInput.file)
             Enumeration enumeration = jarFile.entries()
             File tmpFile = new File(jarInput.file.getParent() + File.separator + "classes_temp.jar")
             if (tmpFile.exists()) {
@@ -157,10 +164,10 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
                 String entryName = jarEntry.getName()
                 ZipEntry zipEntry = new ZipEntry(entryName)
                 InputStream inputStream = jarFile.getInputStream(jarEntry)
-                // println '----------- jarClass <' + entryName + '> -----------'
+//                 println '----------- jarClass <' + entryName + '> -----------'
                 if (checkClassFile(entryName, true)) {
                     jarOutputStream.putNextEntry(zipEntry)
-                    ClassReader classReader = new ClassReader(IOUtils.toByteArray(inputStream))
+                    ClassReader classReader = new ClassReader(org.apache.commons.compress.utils.IOUtils.toByteArray(inputStream))
                     ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_MAXS)
                     ClassVisitor cv = new ThreadTrackerClassVisitor(classWriter, jarName)
                     classReader.accept(cv, EXPAND_FRAMES)
@@ -168,7 +175,7 @@ class ThreadTrackerTransform extends Transform implements Plugin<Project> {
                     jarOutputStream.write(code)
                 } else {
                     jarOutputStream.putNextEntry(zipEntry)
-                    jarOutputStream.write(IOUtils.toByteArray(inputStream))
+                    jarOutputStream.write(org.apache.commons.compress.utils.IOUtils.toByteArray(inputStream))
                 }
                 jarOutputStream.closeEntry()
             }
